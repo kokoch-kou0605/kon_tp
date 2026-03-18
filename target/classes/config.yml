@@ -1,0 +1,7 @@
+# /rtp coordinate range (same world/dimension as current location)
+rtp:
+  min-coordinate: -10000000
+  max-coordinate: 10000000
+
+# Request timeout in seconds for /tpa and /tpahere
+request-timeout-seconds: 60
