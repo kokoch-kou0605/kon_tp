@@ -1,0 +1,12 @@
+# /rtp coordinate range (same world/dimension as current location)
+rtp:
+  min-coordinate: -10000000
+  max-coordinate: 10000000
+  # true: 現在ロード済みチャンクだけを候補にする（TPS保護推奨）
+  only-loaded-chunks: true
+  # true: 未生成チャンクを候補外にする（RTPで地形生成しない）
+  require-generated-chunks: true
+  # 注: サーバー負荷保護のため、未生成チャンクをRTPで強制生成しない設定を推奨
+
+# Request timeout in seconds for /tpa and /tpahere
+request-timeout-seconds: 60
