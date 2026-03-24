@@ -33,7 +33,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, TabCompleter, Listener {
-    private static final int MAX_RTP_ATTEMPTS = 60;
+    private static final int MAX_RTP_ATTEMPTS = 200;
     private static final int WARMUP_SECONDS = 5;
 
     private final Map<UUID, List<TeleportRequest>> pendingByTarget = new HashMap<>();
@@ -126,11 +126,11 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
             }
         }
 
-        // フォールバック: 安全場所以外は許容し、範囲内のどこでも探索
+        // 2段目: 設定に従って探索（未生成チャンクの強制生成はしない）
         for (int i = 0; i < MAX_RTP_ATTEMPTS; i++) {
             int x = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
             int z = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
-            Location target = findSafeSurfaceLocationAnywhere(world, x, z);
+            Location target = findSafeSurfaceLocation(world, x, z);
             if (target == null) {
                 continue;
             }
@@ -139,6 +139,7 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
             return true;
         }
         player.sendMessage(color("&c安全な場所が見つかりませんでした。"));
+        player.sendMessage(color("&7RTP範囲を狭めるか、事前生成ワールドを増やしてください。"));
         return true;
     }
 
@@ -172,28 +173,6 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
             return null;
         }
 
-        int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
-        Block ground = world.getBlockAt(x, y - 1, z);
-        Block feet = world.getBlockAt(x, y, z);
-        Block head = world.getBlockAt(x, y + 1, z);
-
-        if (!ground.getType().isSolid()) {
-            return null;
-        }
-        if (isUnsafeGround(ground.getType())) {
-            return null;
-        }
-        if (!feet.isEmpty() || !head.isEmpty()) {
-            return null;
-        }
-        if (feet.isLiquid() || head.isLiquid()) {
-            return null;
-        }
-
-        return new Location(world, x + 0.5, y, z + 0.5);
-    }
-
-    private Location findSafeSurfaceLocationAnywhere(World world, int x, int z) {
         int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
         Block ground = world.getBlockAt(x, y - 1, z);
         Block feet = world.getBlockAt(x, y, z);

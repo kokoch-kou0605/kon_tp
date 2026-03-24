@@ -6,7 +6,7 @@ rtp:
   only-loaded-chunks: true
   # true: 未生成チャンクを候補外にする（RTPで地形生成しない）
   require-generated-chunks: true
-  # 注: only-loaded-chunksで見つからない場合は、安全地形を優先して範囲内全体から再探索します
+  # 注: サーバー負荷保護のため、未生成チャンクをRTPで強制生成しない設定を推奨
 
 # Request timeout in seconds for /tpa and /tpahere
 request-timeout-seconds: 60
