@@ -1,8 +1,11 @@
 package com.kon.tp;
 
 import org.bukkit.ChatColor;
+import org.bukkit.HeightMap;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -110,19 +113,48 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
         for (int i = 0; i < MAX_RTP_ATTEMPTS; i++) {
             int x = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
             int z = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
-            int y = world.getHighestBlockYAt(x, z);
-            Location target = new Location(world, x + 0.5, y + 1.0, z + 0.5);
-            if (!target.getBlock().getType().isAir()) {
+            Location target = findSafeSurfaceLocation(world, x, z);
+            if (target == null) {
                 continue;
             }
-            if (!target.clone().add(0.0, 1.0, 0.0).getBlock().getType().isAir()) {
-                continue;
-            }
+            int y = target.getBlockY();
             startWarmup(player, target, "&aRTP", "&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")");
             return true;
         }
         player.sendMessage(color("&c安全な場所が見つかりませんでした。"));
         return true;
+    }
+
+    private Location findSafeSurfaceLocation(World world, int x, int z) {
+        int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+        Block ground = world.getBlockAt(x, y - 1, z);
+        Block feet = world.getBlockAt(x, y, z);
+        Block head = world.getBlockAt(x, y + 1, z);
+
+        if (!ground.getType().isSolid()) {
+            return null;
+        }
+        if (isUnsafeGround(ground.getType())) {
+            return null;
+        }
+        if (!feet.isEmpty() || !head.isEmpty()) {
+            return null;
+        }
+        if (feet.isLiquid() || head.isLiquid()) {
+            return null;
+        }
+
+        return new Location(world, x + 0.5, y, z + 0.5);
+    }
+
+    private boolean isUnsafeGround(Material material) {
+        return material == Material.LAVA
+                || material == Material.MAGMA_BLOCK
+                || material == Material.CAMPFIRE
+                || material == Material.SOUL_CAMPFIRE
+                || material == Material.CACTUS
+                || material == Material.FIRE
+                || material == Material.SOUL_FIRE;
     }
 
     private boolean handleRequest(Player sender, String[] args, RequestType type) {
