@@ -1,0 +1,28 @@
+name: KonTP
+version: 1.0.0
+main: com.kon.tp.KonTpPlugin
+api-version: '1.21'
+description: RTP and TPA commands for Purpur 1.21.x
+
+commands:
+  rtp:
+    description: Random teleport in current dimension.
+    usage: /rtp
+  tpa:
+    description: Request to teleport to another player.
+    usage: /tpa <player>
+  tpahere:
+    description: Request another player to teleport to you.
+    usage: /tpahere <player>
+  tpatoggle:
+    description: Toggle accepting teleport requests.
+    usage: /tpatoggle
+  tpaauto:
+    description: Toggle auto-accept for /tpa (not /tpahere).
+    usage: /tpaauto
+  tpaccept:
+    description: Accept a pending teleport request.
+    usage: /tpaccept [player]
+  tpdeny:
+    description: Deny a pending teleport request.
+    usage: /tpdeny [player]
