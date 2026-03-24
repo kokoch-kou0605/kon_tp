@@ -43,6 +43,8 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
     private long requestTimeoutMillis;
     private int rtpMin;
     private int rtpMax;
+    private boolean rtpOnlyLoadedChunks;
+    private boolean rtpRequireGenerated;
 
     @Override
     public void onEnable() {
@@ -50,6 +52,8 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
         requestTimeoutMillis = getConfig().getLong("request-timeout-seconds", 60L) * 1000L;
         rtpMin = getConfig().getInt("rtp.min-coordinate", -10_000_000);
         rtpMax = getConfig().getInt("rtp.max-coordinate", 10_000_000);
+        rtpOnlyLoadedChunks = getConfig().getBoolean("rtp.only-loaded-chunks", true);
+        rtpRequireGenerated = getConfig().getBoolean("rtp.require-generated-chunks", true);
 
         register("rtp");
         register("tpa");
@@ -122,10 +126,22 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
             return true;
         }
         player.sendMessage(color("&c安全な場所が見つかりませんでした。"));
+        if (rtpOnlyLoadedChunks || rtpRequireGenerated) {
+            player.sendMessage(color("&7ヒント: 候補が少ない場合は管理者がrtp設定を調整してください。"));
+        }
         return true;
     }
 
     private Location findSafeSurfaceLocation(World world, int x, int z) {
+        int chunkX = x >> 4;
+        int chunkZ = z >> 4;
+        if (rtpRequireGenerated && !world.isChunkGenerated(chunkX, chunkZ)) {
+            return null;
+        }
+        if (rtpOnlyLoadedChunks && !world.isChunkLoaded(chunkX, chunkZ)) {
+            return null;
+        }
+
         int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
         Block ground = world.getBlockAt(x, y - 1, z);
         Block feet = world.getBlockAt(x, y, z);
