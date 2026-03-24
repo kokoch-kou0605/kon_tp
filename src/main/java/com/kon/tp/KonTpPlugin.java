@@ -1,6 +1,7 @@
 package com.kon.tp;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Chunk;
 import org.bukkit.HeightMap;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -114,22 +115,53 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
 
     private boolean handleRtp(Player player) {
         World world = player.getWorld();
-        for (int i = 0; i < MAX_RTP_ATTEMPTS; i++) {
-            int x = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
-            int z = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
-            Location target = findSafeSurfaceLocation(world, x, z);
-            if (target == null) {
-                continue;
+        if (rtpOnlyLoadedChunks) {
+            Location target = findSafeLocationFromLoadedChunks(world);
+            if (target != null) {
+                int x = target.getBlockX();
+                int y = target.getBlockY();
+                int z = target.getBlockZ();
+                startWarmup(player, target, "&aRTP", "&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")");
+                return true;
             }
-            int y = target.getBlockY();
-            startWarmup(player, target, "&aRTP", "&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")");
-            return true;
+        } else {
+            for (int i = 0; i < MAX_RTP_ATTEMPTS; i++) {
+                int x = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
+                int z = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
+                Location target = findSafeSurfaceLocation(world, x, z);
+                if (target == null) {
+                    continue;
+                }
+                int y = target.getBlockY();
+                startWarmup(player, target, "&aRTP", "&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")");
+                return true;
+            }
         }
         player.sendMessage(color("&c安全な場所が見つかりませんでした。"));
         if (rtpOnlyLoadedChunks || rtpRequireGenerated) {
             player.sendMessage(color("&7ヒント: 候補が少ない場合は管理者がrtp設定を調整してください。"));
         }
         return true;
+    }
+
+    private Location findSafeLocationFromLoadedChunks(World world) {
+        Chunk[] loadedChunks = world.getLoadedChunks();
+        if (loadedChunks.length == 0) {
+            return null;
+        }
+        for (int i = 0; i < MAX_RTP_ATTEMPTS; i++) {
+            Chunk chunk = loadedChunks[ThreadLocalRandom.current().nextInt(loadedChunks.length)];
+            int x = (chunk.getX() << 4) + ThreadLocalRandom.current().nextInt(16);
+            int z = (chunk.getZ() << 4) + ThreadLocalRandom.current().nextInt(16);
+            if (x < rtpMin || x > rtpMax || z < rtpMin || z > rtpMax) {
+                continue;
+            }
+            Location target = findSafeSurfaceLocation(world, x, z);
+            if (target != null) {
+                return target;
+            }
+        }
+        return null;
     }
 
     private Location findSafeSurfaceLocation(World world, int x, int z) {
