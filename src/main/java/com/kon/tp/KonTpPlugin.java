@@ -10,8 +10,10 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,10 +30,12 @@ import java.util.stream.Collectors;
 
 public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, TabCompleter, Listener {
     private static final int MAX_RTP_ATTEMPTS = 60;
+    private static final int WARMUP_SECONDS = 5;
 
     private final Map<UUID, List<TeleportRequest>> pendingByTarget = new HashMap<>();
     private final Set<UUID> tpaDisabled = new HashSet<>();
     private final Set<UUID> tpaAutoAccept = new HashSet<>();
+    private final Map<UUID, WarmupTeleport> warmups = new HashMap<>();
 
     private long requestTimeoutMillis;
     private int rtpMin;
@@ -63,10 +67,24 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID id = event.getPlayer().getUniqueId();
+        cancelWarmup(id, null);
         pendingByTarget.remove(id);
         tpaDisabled.remove(id);
         tpaAutoAccept.remove(id);
         pendingByTarget.values().forEach(list -> list.removeIf(req -> req.sender().equals(id)));
+    }
+
+    @EventHandler
+    public void onMove(PlayerMoveEvent event) {
+        if (event.getTo() == null) {
+            return;
+        }
+        if (event.getFrom().getBlockX() == event.getTo().getBlockX()
+                && event.getFrom().getBlockY() == event.getTo().getBlockY()
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+            return;
+        }
+        cancelWarmup(event.getPlayer().getUniqueId(), "&c移動したためテレポートをキャンセルしました。");
     }
 
     @Override
@@ -100,8 +118,7 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
             if (!target.clone().add(0.0, 1.0, 0.0).getBlock().getType().isAir()) {
                 continue;
             }
-            player.teleportAsync(target);
-            player.sendMessage(color("&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")"));
+            startWarmup(player, target, "&aRTP", "&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")");
             return true;
         }
         player.sendMessage(color("&c安全な場所が見つかりませんでした。"));
@@ -203,13 +220,55 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
             return;
         }
         if (req.type() == RequestType.TPA) {
-            sender.teleportAsync(target.getLocation());
-            sender.sendMessage(color("&aTPAが承認されました。"));
-            target.sendMessage(color("&a" + sender.getName() + " をあなたの場所へTPさせました。"));
+            sender.sendMessage(color("&aTPAが承認されました。5秒後にテレポートします。"));
+            target.sendMessage(color("&a" + sender.getName() + " を5秒後にあなたの場所へTPさせます。"));
+            startWarmup(sender, target.getLocation(), "&aTPA", "&aTPA完了: &f" + target.getName() + " の場所へテレポートしました。");
         } else {
-            target.teleportAsync(sender.getLocation());
-            sender.sendMessage(color("&aTPAHEREが承認されました。"));
-            target.sendMessage(color("&a" + sender.getName() + " の場所へTPしました。"));
+            sender.sendMessage(color("&aTPAHEREが承認されました。相手は5秒後にテレポートします。"));
+            target.sendMessage(color("&a5秒後に " + sender.getName() + " の場所へテレポートします。"));
+            startWarmup(target, sender.getLocation(), "&aTPAHERE", "&aTPAHERE完了: &f" + sender.getName() + " の場所へテレポートしました。");
+        }
+    }
+
+    private void startWarmup(Player player, Location destination, String prefix, String doneMessage) {
+        cancelWarmup(player.getUniqueId(), "&e既存のテレポート待機をキャンセルしました。");
+        BukkitTask task = getServer().getScheduler().runTaskTimer(this, new Runnable() {
+            int remaining = WARMUP_SECONDS;
+
+            @Override
+            public void run() {
+                if (!player.isOnline()) {
+                    cancelWarmup(player.getUniqueId(), null);
+                    return;
+                }
+                WarmupTeleport current = warmups.get(player.getUniqueId());
+                if (current == null) {
+                    return;
+                }
+                if (remaining <= 0) {
+                    player.teleportAsync(destination);
+                    player.sendMessage(color(doneMessage));
+                    cancelWarmup(player.getUniqueId(), null);
+                    return;
+                }
+                player.sendMessage(color(prefix + "まで &e" + remaining + "秒&7... (動くとキャンセル)"));
+                remaining--;
+            }
+        }, 0L, 20L);
+        warmups.put(player.getUniqueId(), new WarmupTeleport(task));
+    }
+
+    private void cancelWarmup(UUID playerId, String message) {
+        WarmupTeleport warmup = warmups.remove(playerId);
+        if (warmup == null) {
+            return;
+        }
+        warmup.task().cancel();
+        if (message != null) {
+            Player player = getServer().getPlayer(playerId);
+            if (player != null && player.isOnline()) {
+                player.sendMessage(color(message));
+            }
         }
     }
 
@@ -294,4 +353,6 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
     }
 
     private record TeleportRequest(UUID sender, UUID target, RequestType type, long createdAtMillis) {}
+
+    private record WarmupTeleport(BukkitTask task) {}
 }
