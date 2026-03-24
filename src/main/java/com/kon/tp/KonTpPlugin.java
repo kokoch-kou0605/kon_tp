@@ -124,23 +124,21 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
                 startWarmup(player, target, "&aRTP", "&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")");
                 return true;
             }
-        } else {
-            for (int i = 0; i < MAX_RTP_ATTEMPTS; i++) {
-                int x = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
-                int z = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
-                Location target = findSafeSurfaceLocation(world, x, z);
-                if (target == null) {
-                    continue;
-                }
-                int y = target.getBlockY();
-                startWarmup(player, target, "&aRTP", "&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")");
-                return true;
+        }
+
+        // フォールバック: 安全場所以外は許容し、範囲内のどこでも探索
+        for (int i = 0; i < MAX_RTP_ATTEMPTS; i++) {
+            int x = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
+            int z = ThreadLocalRandom.current().nextInt(rtpMin, rtpMax + 1);
+            Location target = findSafeSurfaceLocationAnywhere(world, x, z);
+            if (target == null) {
+                continue;
             }
+            int y = target.getBlockY();
+            startWarmup(player, target, "&aRTP", "&aRTP完了: &f" + world.getName() + " &7(" + x + ", " + y + ", " + z + ")");
+            return true;
         }
         player.sendMessage(color("&c安全な場所が見つかりませんでした。"));
-        if (rtpOnlyLoadedChunks || rtpRequireGenerated) {
-            player.sendMessage(color("&7ヒント: 候補が少ない場合は管理者がrtp設定を調整してください。"));
-        }
         return true;
     }
 
@@ -174,6 +172,28 @@ public final class KonTpPlugin extends JavaPlugin implements CommandExecutor, Ta
             return null;
         }
 
+        int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+        Block ground = world.getBlockAt(x, y - 1, z);
+        Block feet = world.getBlockAt(x, y, z);
+        Block head = world.getBlockAt(x, y + 1, z);
+
+        if (!ground.getType().isSolid()) {
+            return null;
+        }
+        if (isUnsafeGround(ground.getType())) {
+            return null;
+        }
+        if (!feet.isEmpty() || !head.isEmpty()) {
+            return null;
+        }
+        if (feet.isLiquid() || head.isLiquid()) {
+            return null;
+        }
+
+        return new Location(world, x + 0.5, y, z + 0.5);
+    }
+
+    private Location findSafeSurfaceLocationAnywhere(World world, int x, int z) {
         int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
         Block ground = world.getBlockAt(x, y - 1, z);
         Block feet = world.getBlockAt(x, y, z);
