@@ -1,5 +1,5 @@
 name: KonTP
-version: 1.0.0
+version: 1.0.1
 main: com.kon.tp.KonTpPlugin
 api-version: '1.21'
 description: RTP and TPA commands for Purpur 1.21.x
